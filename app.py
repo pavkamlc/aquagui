@@ -1,150 +1,103 @@
+# app.py
+import asyncio
 from nicegui import ui, app
-import sqlite3
-import bcrypt
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import logging
+from datetime import datetime
 import importlib
 import os
-import RPi.GPIO as GPIO
-from plugin_base import PluginBase
-from logger_config import main_logger, plugin_logger
 
-# Use main_logger instead of print statements
-main_logger.info("Application started")
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Database setup
-conn = sqlite3.connect('app.db')
-cursor = conn.cursor()
+Base = declarative_base()
+engine = create_engine('sqlite:///app.db')
+Session = sessionmaker(bind=engine)
 
-# Create tables if they don't exist
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        username TEXT UNIQUE,
-        password TEXT,
-        is_admin BOOLEAN
-    )
-''')
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False)
+    password = Column(String, nullable=False)
+    is_admin = Column(Boolean, default=False)
 
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS config (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )
-''')
+class Config(Base):
+    __tablename__ = 'config'
+    id = Column(Integer, primary_key=True)
+    key = Column(String, unique=True, nullable=False)
+    value = Column(String)
 
-conn.commit()
+Base.metadata.create_all(engine)
 
-# User management
-def register_user(username, password, is_admin=False):
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    cursor.execute("INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)", (username, hashed, is_admin))
-    conn.commit()
-    main_logger.info(f"User registered: {username}")
+# Plugin base class
+class PluginBase:
+    def __init__(self, app):
+        self.app = app
+        self.enabled = True
 
-def validate_user(username, password):
-    cursor.execute("SELECT password, is_admin FROM users WHERE username = ?", (username,))
-    result = cursor.fetchone()
-    if result:
-        is_valid = bcrypt.checkpw(password.encode('utf-8'), result[0])
-        main_logger.info(f"User login attempt: {username}, Success: {is_valid}")
-        return is_valid, result[1]
-    main_logger.warning(f"Login attempt for non-existent user: {username}")
-    return False, False
+    async def tick(self):
+        pass
 
-# Configuration management
-def set_config(key, value):
-    cursor.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (key, value))
-    conn.commit()
+    def disable(self):
+        self.enabled = False
 
-def get_config(key):
-    cursor.execute("SELECT value FROM config WHERE key = ?", (key,))
-    result = cursor.fetchone()
-    return result[0] if result else None
+    def enable(self):
+        self.enabled = True
 
-# Plugin management
-plugins = {}
+# App class
+class NiceGUIApp:
+    def __init__(self):
+        self.plugins = []
+        self.load_plugins()
+        self.setup_database()
+        self.setup_ui()
 
-def load_plugins():
-    plugin_dir = 'plugins'
-    for filename in os.listdir(plugin_dir):
-        if filename.endswith('.py'):
-            module_name = filename[:-3]
-            try:
-                module = importlib.import_module(f'{plugin_dir}.{module_name}')
-                if hasattr(module, 'setup'):
-                    plugin = module.setup()
-                    if isinstance(plugin, PluginBase):
-                        plugins[plugin.name] = plugin
-                        plugin_logger.info(f"Loaded plugin: {plugin.name}")
-                    else:
-                        plugin_logger.warning(f"Invalid plugin type: {module_name}")
-            except Exception as e:
-                plugin_logger.error(f"Error loading plugin {module_name}: {str(e)}")
+    def load_plugins(self):
+        plugin_dir = 'plugins'
+        for filename in os.listdir(plugin_dir):
+            if filename.endswith('.py') and filename != '__init__.py':
+                module_name = f'plugins.{filename[:-3]}'
+                module = importlib.import_module(module_name)
+                plugin_class = getattr(module, 'Plugin')
+                self.plugins.append(plugin_class(self))
+        logger.info(f"Loaded {len(self.plugins)} plugins")
 
-# Main app
-@ui.page('/')
-def main_page():
-    ui.label('Welcome to the NiceGUI App')
-    
-    with ui.row():
-        username = ui.input('Username')
-        password = ui.input('Password', password=True)
-        ui.button('Login', on_click=lambda: login(username.value, password.value))
-        ui.button('Register', on_click=lambda: register(username.value, password.value))
+    def setup_database(self):
+        with Session() as session:
+            admin = session.query(User).filter_by(username='admin').first()
+            if not admin:
+                admin = User(username='admin', password='admin', is_admin=True)
+                session.add(admin)
+                session.commit()
+                logger.info("Created default admin user")
 
-    # Plugin section
-    with ui.column():
-        ui.label('Plugins')
-        for plugin_name, plugin in plugins.items():
-            ui.button(plugin_name, on_click=lambda p=plugin: p.run())
+    def setup_ui(self):
+        @ui.page('/')
+        def index():
+            ui.label('Welcome to the NiceGUI App')
+            self.time_label = ui.label()
+            ui.timer(1, self.update_time)
 
-def login(username, password):
-    is_valid, is_admin = validate_user(username, password)
-    if is_valid:
-        ui.notify('Login successful')
-        main_logger.info(f"User logged in: {username}")
-        if is_admin:
-            ui.notify('Logged in as admin')
-            main_logger.info(f"Admin logged in: {username}")
-    else:
-        ui.notify('Invalid username or password', color='negative')
-        main_logger.warning(f"Failed login attempt: {username}")
+    def update_time(self):
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.time_label.set_text(f"Current time: {current_time}")
 
-def register(username, password):
-    try:
-        register_user(username, password)
-        ui.notify('Registration successful')
-        main_logger.info(f"New user registered: {username}")
-    except sqlite3.IntegrityError:
-        ui.notify('Username already exists', color='negative')
-        main_logger.warning(f"Registration attempt with existing username: {username}")
+    async def run_plugins(self):
+        while True:
+            for plugin in self.plugins:
+                if plugin.enabled:
+                    await plugin.tick()
+            await asyncio.sleep(1)
 
-def create_admin_if_not_exists():
-    cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1")
-    if cursor.fetchone()[0] == 0:
-        admin_password = 'admin'  # You should change this to a secure password
-        register_user('admin', admin_password, is_admin=True)
-        main_logger.info("Initial admin user created. Username: admin, Password: admin")
-        main_logger.warning("Please change the admin password after first login.")
+# Initialize and run the app
+nice_gui_app = NiceGUIApp()
 
-# Cleanup function
-def cleanup():
-    for plugin in plugins.values():
-        try:
-            plugin.cleanup()
-            plugin_logger.info(f"Cleaned up plugin: {plugin.name}")
-        except Exception as e:
-            plugin_logger.error(f"Error cleaning up plugin {plugin.name}: {str(e)}")
-    main_logger.info("Application shutting down")
+@app.on_startup
+async def startup():
+    asyncio.create_task(nice_gui_app.run_plugins())
 
-# Create initial admin user
-create_admin_if_not_exists()
-
-# Load plugins
-load_plugins()
-
-#PM
-app.on_shutdown(cleanup)
-
-# Run the app
-main_logger.info("Starting NiceGUI application")
-ui.run(title='NiceGUI App')
+ui.run()
