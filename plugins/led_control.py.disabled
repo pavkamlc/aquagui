@@ -1,5 +1,5 @@
 # plugins/gpio_dimable_led.py
-from app import PluginBase
+from plugin_base import PluginBase
 import logging
 import RPi.GPIO as GPIO
 

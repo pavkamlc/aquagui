@@ -1,5 +1,5 @@
 # plugins/snmp_plugin.py
-from app import PluginBase
+from plugin_base import PluginBase
 import logging
 from pysnmp.hlapi import *
 

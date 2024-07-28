@@ -1,5 +1,5 @@
 # plugins/mqtt_plugin.py
-from app import PluginBase
+from plugin_base import PluginBase
 import logging
 import paho.mqtt.client as mqtt
 
@@ -11,7 +11,7 @@ class Plugin(PluginBase):
         self.client = mqtt.Client()
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
-        self.client.connect("mqtt.eclipse.org", 1883, 60)  # Replace with your MQTT broker
+        self.client.connect("openhab", 1883, 60)  # Replace with your MQTT broker
         self.client.loop_start()
         logger.info("MQTT plugin initialized")
 

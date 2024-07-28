@@ -4,14 +4,13 @@ from nicegui import ui, app
 from sqlalchemy import create_engine, Column, Integer, String, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import logging
+from logger_config import main_logger, plugin_logger
 from datetime import datetime
 import importlib
 import os
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+#logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # Database setup
 Base = declarative_base()
@@ -33,21 +32,6 @@ class Config(Base):
 
 Base.metadata.create_all(engine)
 
-# Plugin base class
-class PluginBase:
-    def __init__(self, app):
-        self.app = app
-        self.enabled = True
-
-    async def tick(self):
-        pass
-
-    def disable(self):
-        self.enabled = False
-
-    def enable(self):
-        self.enabled = True
-
 # App class
 class NiceGUIApp:
     def __init__(self):
@@ -64,7 +48,7 @@ class NiceGUIApp:
                 module = importlib.import_module(module_name)
                 plugin_class = getattr(module, 'Plugin')
                 self.plugins.append(plugin_class(self))
-        logger.info(f"Loaded {len(self.plugins)} plugins")
+        main_logger.info(f"Loaded {len(self.plugins)} plugins")
 
     def setup_database(self):
         with Session() as session:

@@ -1,5 +1,5 @@
 # plugins/raspberry_lcd.py
-from app import PluginBase
+from plugin_base import PluginBase
 import logging
 import board
 import digitalio

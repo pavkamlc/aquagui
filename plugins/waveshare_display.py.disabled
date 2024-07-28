@@ -1,5 +1,5 @@
 # plugins/epaper_display.py
-from app import PluginBase
+from plugin_base import PluginBase
 import logging
 from waveshare_epd import epd2in13_V2
 import time

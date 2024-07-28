@@ -1,13 +1,14 @@
-# plugins/sample_plugin.py
-from app import PluginBase
-import logging
-
-logger = logging.getLogger(__name__)
-
-class Plugin(PluginBase):
+# Plugin base class
+class PluginBase:
     def __init__(self, app):
-        super().__init__(app)
-        logger.info("Sample plugin initialized")
+        self.app = app
+        self.enabled = True
 
     async def tick(self):
-        logger.info("Sample plugin tick")
+        pass
+
+    def disable(self):
+        self.enabled = False
+
+    def enable(self):
+        self.enabled = True
