@@ -1,3 +1,5 @@
+from applogger import plugin_logger
+
 # Plugin base class
 class PluginBase:
     def __init__(self, app):

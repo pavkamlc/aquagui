@@ -4,7 +4,7 @@ from nicegui import ui, app
 from sqlalchemy import create_engine, Column, Integer, String, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from logger_config import main_logger, plugin_logger
+from applogger import main_logger
 from datetime import datetime
 import importlib
 import os

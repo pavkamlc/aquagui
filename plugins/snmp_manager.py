@@ -1,19 +1,17 @@
 # plugins/snmp_plugin.py
 from plugin_base import PluginBase
-import logging
+from applogger import plugin_logger
 from pysnmp.hlapi import *
-
-logger = logging.getLogger(__name__)
-
 class Plugin(PluginBase):
     def __init__(self, app):
         super().__init__(app)
         self.community = 'public'
         self.ip = '192.168.1.1'  # Replace with your SNMP agent IP
-        logger.info("SNMP plugin initialized")
+        plugin_logger.info("SNMP plugin initialized")
 
     async def tick(self):
         # Perform SNMP operations here
+        plugin_logger.info("SNMP plugin tick")
         pass
 
     def get_snmp_data(self, oid):
@@ -26,9 +24,9 @@ class Plugin(PluginBase):
         )
 
         if errorIndication:
-            logger.error(f"SNMP error: {errorIndication}")
+            plugin_logger.error(f"SNMP error: {errorIndication}")
         elif errorStatus:
-            logger.error(f"SNMP error: {errorStatus.prettyPrint()}")
+            plugin_logger.error(f"SNMP error: {errorStatus.prettyPrint()}")
         else:
             for varBind in varBinds:
-                logger.info(f" = ".join([x.prettyPrint() for x in varBind]))
+                plugin_logger.info(f" = ".join([x.prettyPrint() for x in varBind]))
