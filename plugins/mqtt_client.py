@@ -17,13 +17,14 @@ class Plugin(PluginBase):
 
     def on_connect(self, client, userdata, flags, rc):
         logger.info(f"Connected with result code {rc}")
-        client.subscribe("test/topic")  # Replace with your topic
+        self.client.subscribe("test/topic")  # Replace with your topic
 
     def on_message(self, client, userdata, msg):
         logger.info(f"{msg.topic} {str(msg.payload)}")
 
     async def tick(self):
         # Perform periodic MQTT operations here if needed
+        self.client.subscribe("test/tick")  # Replace with your topic
         pass
 
     def publish_message(self, topic, message):
